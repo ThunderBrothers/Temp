@@ -97,7 +97,7 @@ public class SocketConnect : MonoBehaviour
         Debug.Log("Start handle ReceiveMessgae");
 
         listenThread = new Thread(()=> {
-            udpListen = new UdpClient(new IPEndPoint(IPAddress.Any, port));
+            udpListen = new UdpClient();
             while (listenThreadIsRun)
             {
                 Thread.Sleep(10);
@@ -126,14 +126,14 @@ public class SocketConnect : MonoBehaviour
         {
             udpClient.Close();
         }
-        clinetThread.Abort();
+        clinetThread?.Abort();
         clinetThreadIsRun = false;
 
         if (udpListen!= null)
         {
             udpListen.Close();
         }
-        listenThread.Abort();
+        listenThread?.Abort();
         listenThreadIsRun = false;
     }
 
