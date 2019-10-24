@@ -2,15 +2,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using Newtonsoft.Json;
 
 public class LineDraw : MonoBehaviour
 {
     public LineSet myLineSet;
     public bool isDrag = false;
     public float checkDragTime = 0f;
+    public LineRenderer lineRender;
+    private List<Vector3> points = new List<Vector3>();
     public Vector3 curDrawPos;
     private Vector3 lastDrawPos;
     private float dis;
+    private Vector3 tempVec3;
+    private Ray ray;
+    private RaycastHit hit;
+
+    private Dictionary<LineSet, LineRenderer> allDrawnLines = new Dictionary<LineSet, LineRenderer>();
 
     // Start is called before the first frame update
     void Start()
@@ -33,11 +41,19 @@ public class LineDraw : MonoBehaviour
                     lastDrawPos = curDrawPos;
                     if (!myLineSet.nodes.Contains(lastDrawPos))
                     {
+                        ray = Camera.main.ScreenPointToRay(lastDrawPos);
+                        if (Physics.Raycast(ray,out hit))
+                        {
+                            if (hit.collider != null)
+                            {
+                                points.Add(hit.point - Vector3.forward);
+                            }
+                        }
                         myLineSet.nodes.Add(lastDrawPos);
+                        lineRender.positionCount = points.Count;
+                        lineRender.SetPositions(points.ToArray());
                     }
                 }
-            }else {
-
             }
         }
     }
@@ -49,6 +65,8 @@ public class LineDraw : MonoBehaviour
     void OnMouseDown()
     {
         myLineSet = new LineSet();
+        myLineSet.Reset();
+        myLineSet.owner = SocketConnect.Instance.identityMark;
         isDrag = true;
         curDrawPos = Input.mousePosition;
         myLineSet.nodes.Add(curDrawPos);
@@ -60,6 +78,25 @@ public class LineDraw : MonoBehaviour
     {
         isDrag = false;
         myLineSet.endPos = curDrawPos;
+        GameObject tempObj = new GameObject("Line" + myLineSet.owner);
+        tempObj.transform.parent = lineRender.transform;
+        tempObj.transform.localPosition = Vector3.zero;
+        tempObj.transform.localRotation = Quaternion.identity;
+        LineRenderer tempLine = tempObj.AddComponent<LineRenderer>();
+        tempLine.endColor = myLineSet.color;
+        tempLine.startColor = myLineSet.color;
+        tempLine.startWidth = myLineSet.width;
+        tempLine.endWidth = myLineSet.width;
+        tempLine.positionCount = points.Count;
+        tempLine.SetPositions(points.ToArray());
+
+
+        allDrawnLines.Add(myLineSet, tempLine);
+
+        
+        myLineSet = new LineSet();
+        points.Clear();
+        lineRender.SetPositions(points.ToArray());
     }
     private void OnDrawGizmos()
     {
@@ -81,6 +118,11 @@ public class LineDraw : MonoBehaviour
             }
         }
     }
+
+    private string PackLineData()
+    {
+        JsonConvert.DeserializeObject<LineSet>();
+    }
 }
 [Serializable]
 public class LineSet
@@ -91,4 +133,14 @@ public class LineSet
     public Vector3 startPos;
     public Vector3 endPos;
     public List<Vector3> nodes = new List<Vector3>();
+
+    public void Reset()
+    {
+        owner = "";
+        color = Color.red;
+        width = 100;
+        startPos = Vector3.zero;
+        endPos = Vector3.zero;
+        nodes = new List<Vector3>();
+    }
 }

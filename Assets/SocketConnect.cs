@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -11,6 +12,7 @@ using Debug = UnityEngine.Debug;
 
 public class SocketConnect : MonoBehaviour
 {
+    public static SocketConnect Instance;
 
     public UdpClient udpClient;
     public UdpClient udpListen;
@@ -26,13 +28,20 @@ public class SocketConnect : MonoBehaviour
 
     private string appName = "Temp";
     private string currentPID = "localUnity";
+    public string identityMark;
 
+
+    private void Awake()
+    {
+        Instance = this;
+    }
     // Start is called before the first frame update
     void Start()
     {
         InitClient();
         StartListen();
         GetIdentification();
+        identityMark = GetIP(ADDRESSFAM.IPv4) + "$" + currentPID;
     }
 
     // Update is called once per frame
@@ -56,7 +65,8 @@ public class SocketConnect : MonoBehaviour
             return;
         }
         Debug.Log("Start handle SendMessgae");
-        clinetThread = new Thread(()=> {
+        clinetThread = new Thread(() =>
+        {
             udpClient = new UdpClient();
             while (clinetThreadIsRun)
             {
@@ -77,7 +87,8 @@ public class SocketConnect : MonoBehaviour
                         }
                         sendMessages.Clear();
                     }
-                }catch(Exception e)
+                }
+                catch (Exception e)
                 {
                     Debug.Log(e);
                 }
@@ -96,7 +107,8 @@ public class SocketConnect : MonoBehaviour
         }
         Debug.Log("Start handle ReceiveMessgae");
 
-        listenThread = new Thread(()=> {
+        listenThread = new Thread(() =>
+        {
             udpListen = new UdpClient();
             while (listenThreadIsRun)
             {
@@ -104,7 +116,7 @@ public class SocketConnect : MonoBehaviour
                 //Debug.LogWarning("SendListen " + receiveMessages.Count);
                 IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, port);
                 byte[] bufReceive = udpListen.Receive(ref endPoint);
-                string msg = Encoding.Unicode.GetString(bufReceive,0,bufReceive.Length);
+                string msg = Encoding.Unicode.GetString(bufReceive, 0, bufReceive.Length);
                 if (msg.Contains(identifier))
                 {
                     Debug.LogError("Receive msg" + msg);
@@ -129,7 +141,7 @@ public class SocketConnect : MonoBehaviour
         clinetThread?.Abort();
         clinetThreadIsRun = false;
 
-        if (udpListen!= null)
+        if (udpListen != null)
         {
             udpListen.Close();
         }
@@ -153,5 +165,52 @@ public class SocketConnect : MonoBehaviour
             }
         }
     }
+    public string GetIP(ADDRESSFAM Addfam)
+    {
+        //Return null if ADDRESSFAM is Ipv6 but Os does not support it
+        if (Addfam == ADDRESSFAM.IPv6 && !Socket.OSSupportsIPv6)
+        {
+            return null;
+        }
 
+        string output = "";
+
+        foreach (NetworkInterface item in NetworkInterface.GetAllNetworkInterfaces())
+        {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            NetworkInterfaceType _type1 = NetworkInterfaceType.Wireless80211;
+            NetworkInterfaceType _type2 = NetworkInterfaceType.Ethernet;
+
+            if ((item.NetworkInterfaceType == _type1 || item.NetworkInterfaceType == _type2) && item.OperationalStatus == OperationalStatus.Up)
+#endif
+            {
+                foreach (UnicastIPAddressInformation ip in item.GetIPProperties().UnicastAddresses)
+                {
+                    //IPv4
+                    if (Addfam == ADDRESSFAM.IPv4)
+                    {
+                        if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            output = ip.Address.ToString();
+                            Debug.Log("啊" + output);
+                        }
+                    }
+
+                    //IPv6
+                    else if (Addfam == ADDRESSFAM.IPv6)
+                    {
+                        if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                        {
+                            output = ip.Address.ToString();
+                        }
+                    }
+                }
+            }
+        }
+        return output;
+    }
+    public enum ADDRESSFAM
+    {
+        IPv4, IPv6
+    }
 }
