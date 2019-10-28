@@ -23,12 +23,13 @@ public class SocketConnect : MonoBehaviour
     private bool clinetThreadIsRun = false;
     private Thread listenThread;
     private bool listenThreadIsRun = false;
-    private int port = 8085;
+    private int port = 8080;
     private string identifier = "identifier";
 
     private string appName = "Temp";
     private string currentPID = "localUnity";
     public string identityMark;
+    public IPAddress address;
 
 
     private void Awake()
@@ -38,10 +39,19 @@ public class SocketConnect : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        address = GetIP(ADDRESSFAM.IPv4);
         InitClient();
-        StartListen();
+        StartCoroutine(HandleSequential());
         GetIdentification();
-        identityMark = GetIP(ADDRESSFAM.IPv4) + "$" + currentPID;
+        identityMark = address.ToString() + "$" + currentPID;
+        Debug.LogError("identityMark = " + identityMark);
+    }
+
+    IEnumerator HandleSequential()
+    {
+        yield return new WaitForSeconds(2f);
+
+        StartListen();
     }
 
     // Update is called once per frame
@@ -56,6 +66,11 @@ public class SocketConnect : MonoBehaviour
             string posTra = identifier + "$" + currentPID + "$" + Input.mousePosition.ToString();
             sendMessages.Add(posTra);
         }
+    }
+
+    public void SendLienData(string data)
+    {
+        sendMessages.Add(data);
     }
 
     private void InitClient()
@@ -109,43 +124,60 @@ public class SocketConnect : MonoBehaviour
 
         listenThread = new Thread(() =>
         {
-            udpListen = new UdpClient();
+            IPEndPoint local = new IPEndPoint(address, port);
+            IPEndPoint remote = new IPEndPoint(IPAddress.Any, 8085);
+            udpListen = new UdpClient(local);
             while (listenThreadIsRun)
             {
-                Thread.Sleep(10);
-                //Debug.LogWarning("SendListen " + receiveMessages.Count);
-                IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, port);
-                byte[] bufReceive = udpListen.Receive(ref endPoint);
-                string msg = Encoding.Unicode.GetString(bufReceive, 0, bufReceive.Length);
-                if (msg.Contains(identifier))
+                Thread.Sleep(100);
+                Debug.LogWarning("SendListen " + receiveMessages.Count);
+                try
                 {
-                    Debug.LogError("Receive msg" + msg);
-                    receiveMessages.Add(msg);
+                    byte[] bufReceive = udpListen.Receive(ref remote);
+                    string msg = Encoding.Unicode.GetString(bufReceive, 0, bufReceive.Length);
+                    if (msg.Contains(identifier))
+                    {
+                        Debug.LogError("Receive msg" + msg);
+                        receiveMessages.Add(msg);
+                    }
                 }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                }
+               
             }
         });
         listenThread.IsBackground = true;
         listenThread.Start();
         listenThreadIsRun = true;
     }
-    private void OnApplicationQuit()
+    private void OnDestroy()
     {
         Stop();
     }
     private void Stop()
     {
+        Debug.Log("Stop");
         if (udpClient != null)
         {
             udpClient.Close();
         }
-        clinetThread?.Abort();
+        clinetThread.Abort();
         clinetThreadIsRun = false;
+
+        UdpClient udpClientTest = new UdpClient(4444);
+        udpClientTest.Connect("127.0.0.1", 8888);
+        string msg = "1";
+        Byte[] bytes = Encoding.ASCII.GetBytes(msg);
+        udpClientTest.Send(bytes, bytes.Length);
 
         if (udpListen != null)
         {
             udpListen.Close();
+            udpListen = null;
         }
-        listenThread?.Abort();
+        listenThread.Abort();
         listenThreadIsRun = false;
     }
 
@@ -165,7 +197,8 @@ public class SocketConnect : MonoBehaviour
             }
         }
     }
-    public string GetIP(ADDRESSFAM Addfam)
+
+    public IPAddress GetIP(ADDRESSFAM Addfam)
     {
         //Return null if ADDRESSFAM is Ipv6 but Os does not support it
         if (Addfam == ADDRESSFAM.IPv6 && !Socket.OSSupportsIPv6)
@@ -173,7 +206,7 @@ public class SocketConnect : MonoBehaviour
             return null;
         }
 
-        string output = "";
+        IPAddress output = null;
 
         foreach (NetworkInterface item in NetworkInterface.GetAllNetworkInterfaces())
         {
@@ -191,8 +224,7 @@ public class SocketConnect : MonoBehaviour
                     {
                         if (ip.Address.AddressFamily == AddressFamily.InterNetwork)
                         {
-                            output = ip.Address.ToString();
-                            Debug.Log("啊" + output);
+                            output = ip.Address;
                         }
                     }
 
@@ -201,7 +233,7 @@ public class SocketConnect : MonoBehaviour
                     {
                         if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6)
                         {
-                            output = ip.Address.ToString();
+                            output = ip.Address;
                         }
                     }
                 }

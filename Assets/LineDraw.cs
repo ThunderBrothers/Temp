@@ -34,7 +34,6 @@ public class LineDraw : MonoBehaviour
             if (isDrag)
             {
                 dis = Vector3.Distance(curDrawPos, lastDrawPos);
-                Debug.Log(dis);
                 if (dis > 20f)
                 {
                     dis = 0;
@@ -90,7 +89,7 @@ public class LineDraw : MonoBehaviour
         tempLine.positionCount = points.Count;
         tempLine.SetPositions(points.ToArray());
 
-
+        Debug.LogError("DrawLine " + myLineSet.ToString());
         allDrawnLines.Add(myLineSet, tempLine);
 
         
@@ -119,9 +118,16 @@ public class LineDraw : MonoBehaviour
         }
     }
 
-    private string PackLineData()
+    private LineSet PackLineData(string lineSetStr)
     {
-        JsonConvert.DeserializeObject<LineSet>();
+        LineSet lineSet = JsonConvert.DeserializeObject<LineSet>(lineSetStr);
+        return lineSet;
+    }
+
+    private string  AnalyzeLineData(LineSet lineSet)
+    {
+        string str = JsonConvert.SerializeObject(lineSet);
+        return str;
     }
 }
 [Serializable]
@@ -134,6 +140,10 @@ public class LineSet
     public Vector3 endPos;
     public List<Vector3> nodes = new List<Vector3>();
 
+    public override string ToString()
+    {
+        return $"LineSet owner ={owner}  color ={color} width ={width} nodes ={nodes.Count}";
+    }
     public void Reset()
     {
         owner = "";
