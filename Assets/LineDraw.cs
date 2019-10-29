@@ -6,6 +6,9 @@ using Newtonsoft.Json;
 
 public class LineDraw : MonoBehaviour
 {
+    public static LineDraw Instacne;
+
+    public bool drawLocalLine = false;
     public LineSet myLineSet;
     public bool isDrag = false;
     public float checkDragTime = 0f;
@@ -20,6 +23,10 @@ public class LineDraw : MonoBehaviour
 
     private Dictionary<LineSet, LineRenderer> allDrawnLines = new Dictionary<LineSet, LineRenderer>();
 
+    private void Awake()
+    {
+        Instacne = this;
+    }
     // Start is called before the first frame update
     void Start()
     {
@@ -77,22 +84,29 @@ public class LineDraw : MonoBehaviour
     {
         isDrag = false;
         myLineSet.endPos = curDrawPos;
-        GameObject tempObj = new GameObject("Line" + myLineSet.owner);
-        tempObj.transform.parent = lineRender.transform;
-        tempObj.transform.localPosition = Vector3.zero;
-        tempObj.transform.localRotation = Quaternion.identity;
-        LineRenderer tempLine = tempObj.AddComponent<LineRenderer>();
-        tempLine.endColor = myLineSet.color;
-        tempLine.startColor = myLineSet.color;
-        tempLine.startWidth = myLineSet.width;
-        tempLine.endWidth = myLineSet.width;
-        tempLine.positionCount = points.Count;
-        tempLine.SetPositions(points.ToArray());
+        if (drawLocalLine)
+        {
+            GameObject tempObj = new GameObject("Line" + myLineSet.owner);
+            tempObj.transform.parent = lineRender.transform;
+            tempObj.transform.localPosition = Vector3.zero;
+            tempObj.transform.localRotation = Quaternion.identity;
+            LineRenderer tempLine = tempObj.AddComponent<LineRenderer>();
+            tempLine.endColor = new Color(myLineSet.color.x, myLineSet.color.y, myLineSet.color.z, 1);
+            tempLine.startColor = new Color(myLineSet.color.x, myLineSet.color.y, myLineSet.color.z, 1);
+            tempLine.startWidth = myLineSet.width;
+            tempLine.endWidth = myLineSet.width;
+            tempLine.positionCount = points.Count;
+            tempLine.SetPositions(points.ToArray());
+            allDrawnLines.Add(myLineSet, tempLine);
+        }
+      
 
         Debug.LogError("DrawLine " + myLineSet.ToString());
-        allDrawnLines.Add(myLineSet, tempLine);
+       
 
-        
+        string msg = AnalyzeLineData(myLineSet);
+        SocketConnect.Instance.SendLienData(msg);
+
         myLineSet = new LineSet();
         points.Clear();
         lineRender.SetPositions(points.ToArray());
@@ -129,12 +143,44 @@ public class LineDraw : MonoBehaviour
         string str = JsonConvert.SerializeObject(lineSet);
         return str;
     }
+
+    public void CreateLine(string receiveLineData)
+    {
+        LineSet temp = PackLineData(receiveLineData);
+        ThreadHelper.actionlist.Add(()=> {
+            GameObject tempObj = new GameObject("Remote Line" + myLineSet.owner);
+            tempObj.transform.parent = lineRender.transform;
+            tempObj.transform.localPosition = Vector3.zero;
+            tempObj.transform.localRotation = Quaternion.identity;
+            LineRenderer tempLine = tempObj.AddComponent<LineRenderer>();
+            tempLine.endColor = new Color(temp.color.x, temp.color.y, temp.color.z, 1);
+            tempLine.startColor = new Color(temp.color.x, temp.color.y, temp.color.z, 1);
+            tempLine.startWidth = temp.width;
+            tempLine.endWidth = temp.width;
+            tempLine.positionCount = temp.nodes.Count;
+
+            List<Vector3> point = new List<Vector3>();
+            Ray ray;
+            for (int i = 0;i < temp.nodes.Count;i++)
+            {
+                ray = Camera.main.ScreenPointToRay(temp.nodes[i]);
+                if (Physics.Raycast(ray, out hit))
+                {
+                    if (hit.collider != null)
+                    {
+                        point.Add(hit.point - Vector3.forward);
+                    }
+                }
+            }
+            tempLine.SetPositions(point.ToArray());
+        });
+    }
 }
 [Serializable]
 public class LineSet
 {
     public string owner;
-    public Color color;
+    public Vector3 color;
     public float width;
     public Vector3 startPos;
     public Vector3 endPos;
@@ -147,7 +193,7 @@ public class LineSet
     public void Reset()
     {
         owner = "";
-        color = Color.red;
+        color = new Vector3(Color.red.r, Color.red.g, Color.red.b);
         width = 100;
         startPos = Vector3.zero;
         endPos = Vector3.zero;

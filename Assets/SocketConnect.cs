@@ -23,7 +23,7 @@ public class SocketConnect : MonoBehaviour
     private bool clinetThreadIsRun = false;
     private Thread listenThread;
     private bool listenThreadIsRun = false;
-    private int port = 8080;
+    private int port = 18001;
     private string identifier = "identifier";
 
     private string appName = "Temp";
@@ -31,6 +31,8 @@ public class SocketConnect : MonoBehaviour
     public string identityMark;
     public IPAddress address;
 
+    IPAddress ip;
+    IPAddress remoteIp;
 
     private void Awake()
     {
@@ -39,20 +41,25 @@ public class SocketConnect : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        IPAddress[] ips = Dns.GetHostAddresses(Dns.GetHostName());
+        ip = ips[ips.Length - 1];
+        //为了在同一台机器调试，此IP也作为默认远程IP
+        remoteIp = ip;
+
         address = GetIP(ADDRESSFAM.IPv4);
         InitClient();
-        StartCoroutine(HandleSequential());
+        StartListen();
         GetIdentification();
-        identityMark = address.ToString() + "$" + currentPID;
+        identityMark = address.ToString() + "$" + currentPID + "$" + identifier;
         Debug.LogError("identityMark = " + identityMark);
     }
 
-    IEnumerator HandleSequential()
-    {
-        yield return new WaitForSeconds(2f);
+    //IEnumerator HandleSequential()
+    //{
+    //    yield return new WaitForSeconds(2f);
 
-        StartListen();
-    }
+    //    StartListen();
+    //}
 
     // Update is called once per frame
     void Update()
@@ -61,11 +68,11 @@ public class SocketConnect : MonoBehaviour
         {
             Application.Quit();
         }
-        if (Input.GetMouseButtonDown(0))
-        {
-            string posTra = identifier + "$" + currentPID + "$" + Input.mousePosition.ToString();
-            sendMessages.Add(posTra);
-        }
+        //if (Input.GetMouseButtonDown(0))
+        //{
+        //    string posTra = identifier + "$" + currentPID + "$" + Input.mousePosition.ToString();
+        //    sendMessages.Add(posTra);
+        //}
     }
 
     public void SendLienData(string data)
@@ -82,7 +89,7 @@ public class SocketConnect : MonoBehaviour
         Debug.Log("Start handle SendMessgae");
         clinetThread = new Thread(() =>
         {
-            udpClient = new UdpClient();
+            udpClient = new UdpClient(0);
             while (clinetThreadIsRun)
             {
                 Thread.Sleep(10);
@@ -96,7 +103,8 @@ public class SocketConnect : MonoBehaviour
                             for (int i = 0;i < sendMessages.Count;i++)
                             {
                                 byte[] buf = Encoding.Unicode.GetBytes(sendMessages[i]);
-                                udpClient.Send(buf, buf.Length, new IPEndPoint(IPAddress.Broadcast, port));
+                                udpClient.Send(buf, buf.Length, new IPEndPoint(remoteIp, port));
+                                //udpClient.Send(buf, buf.Length, new IPEndPoint(IPAddress.Broadcast, port));
                                 Debug.LogError("Send msg" + sendMessages[i]);
                             }
                         }
@@ -124,8 +132,8 @@ public class SocketConnect : MonoBehaviour
 
         listenThread = new Thread(() =>
         {
-            IPEndPoint local = new IPEndPoint(address, port);
-            IPEndPoint remote = new IPEndPoint(IPAddress.Any, 8085);
+            IPEndPoint local = new IPEndPoint(ip, port);
+            IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, 0);
             udpListen = new UdpClient(local);
             while (listenThreadIsRun)
             {
@@ -133,12 +141,13 @@ public class SocketConnect : MonoBehaviour
                 Debug.LogWarning("SendListen " + receiveMessages.Count);
                 try
                 {
-                    byte[] bufReceive = udpListen.Receive(ref remote);
+                    byte[] bufReceive = udpListen.Receive(ref endPoint);
                     string msg = Encoding.Unicode.GetString(bufReceive, 0, bufReceive.Length);
                     if (msg.Contains(identifier))
                     {
                         Debug.LogError("Receive msg" + msg);
                         receiveMessages.Add(msg);
+                        LineDraw.Instacne.CreateLine(msg);
                     }
                 }
                 catch (Exception e)
@@ -165,12 +174,6 @@ public class SocketConnect : MonoBehaviour
         }
         clinetThread.Abort();
         clinetThreadIsRun = false;
-
-        UdpClient udpClientTest = new UdpClient(4444);
-        udpClientTest.Connect("127.0.0.1", 8888);
-        string msg = "1";
-        Byte[] bytes = Encoding.ASCII.GetBytes(msg);
-        udpClientTest.Send(bytes, bytes.Length);
 
         if (udpListen != null)
         {
