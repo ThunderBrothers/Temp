@@ -134,13 +134,15 @@ public class LineDraw : MonoBehaviour
 
     private LineSet PackLineData(string lineSetStr)
     {
-        LineSet lineSet = JsonConvert.DeserializeObject<LineSet>(lineSetStr);
+        //LineSet lineSet = JsonConvert.DeserializeObject<LineSet>(lineSetStr);
+        LineSet lineSet = JsonUtility.FromJson<LineSet>(lineSetStr);
         return lineSet;
     }
 
     private string  AnalyzeLineData(LineSet lineSet)
     {
-        string str = JsonConvert.SerializeObject(lineSet);
+        //string str = JsonConvert.SerializeObject(lineSet);
+        string str = JsonUtility.ToJson(lineSet);
         return str;
     }
 
